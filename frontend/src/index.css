@@ -1,0 +1,89 @@
+.gradient-text {
+  font-weight: bold;
+  font-family: 'Poppins', sans-serif;
+  font-size: 2.5rem;
+  background: linear-gradient(90deg, #ff416c, #ff4b2b, #1fa2ff, #12d8fa, #a6ffcb);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: fadeIn 1.5s ease-in-out;
+}
+
+@keyframes fadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+.modal {
+  display: block !important;
+  z-index: 1050 !important;
+}
+
+.modal-backdrop {
+  z-index: 1040 !important;
+}
+
+body,
+html {
+  overflow-x: hidden;
+}
+
+.nav-underline {
+  position: relative;
+  display: inline-block;
+  color: #000;
+  text-decoration: none;
+  transition: color 0.3s;
+}
+
+.nav-underline::after {
+  content: '';
+  position: absolute;
+  width: 0%;
+  height: 2px;
+  bottom: 0;
+  left: 0;
+  background-color: green;
+  transition: width 0.3s ease-in-out;
+}
+
+.nav-underline:hover::after {
+  width: 100%;
+}
+
+.nav-link {
+  position: relative;
+  text-decoration: none;
+  display: inline-block;
+  transition: color 0.3s ease;
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  width: 0%;
+  background-color: green;
+  transition: width 0.3s ease-in-out;
+}
+
+.nav-link:hover::after {
+  width: 100%;
+}
+
+/* In your CSS file */
+.custom-small-btn {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.875rem;
+  height: auto;
+  width: auto;
+}
