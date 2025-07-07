@@ -1,55 +1,80 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import SearchFilter from '../components/SearchFilter';
+import Toast from '../components/Toast';
+import LoadingSpinner from '../components/LoadingSpinner';
+import axios from 'axios';
 import { debounce } from 'lodash';
-import SearchFilter from '../components/SearchFilter'; // Adjusted path
-import Toast from '../components/Toast'; // Adjusted path
-import LoadingSpinner from '../components/LoadingSpinner'; // Adjusted path
-import { searchRestaurants } from '../services/api';
 
-function Search({ setToken }) {
+function Search({ handleSearch: parentHandleSearch, token, setToken }) {
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState({ show: false, message: '' });
-  const [token, setLocalToken] = useState(localStorage.getItem('token') || '');
   const navigate = useNavigate();
+
+  const normalizeRestaurants = useCallback((data) => {
+    return data.map((restaurant) => {
+      let normalizedImages = [];
+      const validImageRegex = /^[0-9a-zA-Z._-]+\.(jpg|jpeg|png)$/;
+      if (Array.isArray(restaurant.images)) {
+        normalizedImages = restaurant.images
+          .map((img) => img.replace(/^\/?(public\/images\/|uploads\/|uploads\/images\/|Ipublicluploads\/)/, 'public/uploads/images/'))
+          .filter((img) => validImageRegex.test(img.split('/').pop()))
+          .slice(0, 2);
+      } else if (typeof restaurant.images === 'string') {
+        const normalizedPath = restaurant.images.replace(/^\/?(public\/images\/|uploads\/|uploads\/images\/|Ipublicluploads\/)/, 'public/uploads/images/');
+        if (validImageRegex.test(normalizedPath.split('/').pop())) {
+          normalizedImages = [normalizedPath];
+        }
+      }
+      return {
+        ...restaurant,
+        images: normalizedImages,
+        id: restaurant.id || restaurant._id || Math.random().toString(36).substring(2),
+        name: (restaurant.name || 'Unknown').trim(),
+        cuisine: (restaurant.cuisine || 'N/A').trim(),
+        location: (restaurant.location || 'N/A').trim().replace('chken', 'chicken'),
+        rating: restaurant.rating || 0,
+      };
+    });
+  }, []);
 
   const handleSearch = useCallback(
     (query, filters) => {
-      const debouncedSearch = debounce(async () => {
+      const debounced = debounce(async () => {
         setLoading(true);
         try {
           if (!token) throw new Error('No authentication token found');
-          const { data } = await searchRestaurants(1, 10, query, filters);
-          const normalizedRestaurants = data.map((restaurant) => {
-            let normalizedImages = [];
-            const validImageRegex = /^[0-9a-zA-Z._-]+\.(jpg|jpeg|png)$/;
-            if (Array.isArray(restaurant.images)) {
-              normalizedImages = restaurant.images
-                .map((img) => img.replace(/^\/?(public\/images\/|uploads\/|uploads\/images\/|Ipublicluploads\/)/, 'public/uploads/images/'))
-                .filter((img) => validImageRegex.test(img.split('/').pop()));
-            } else if (typeof restaurant.images === 'string') {
-              const normalizedPath = restaurant.images.replace(/^\/?(public\/images\/|uploads\/|uploads\/images\/|Ipublicluploads\/)/, 'public/uploads/images/');
-              if (validImageRegex.test(normalizedPath.split('/').pop())) {
-                normalizedImages = [normalizedPath];
-              }
-            }
-            return {
-              ...restaurant,
-              images: normalizedImages.slice(0, 2), // Limit to 2 images
-              id: restaurant._id || restaurant.id || Math.random().toString(36).substring(2),
-              name: (restaurant.name || 'Unknown').trim(),
-              cuisine: (restaurant.cuisine || 'N/A').trim(),
-              location: (restaurant.location || 'N/A').trim().replace('chken', 'chicken'),
-              rating: restaurant.rating || 0,
-            };
+          const url = new URL('http://localhost:8081/restaurants/search');
+          const params = new URLSearchParams({ ...filters, query, limit: 10, page: 1 });
+          url.search = params.toString();
+
+          const response = await axios.get(url.toString(), {
+            headers: { Authorization: `Bearer ${token}` },
           });
+
+          const restaurantData = response.data.data || response.data.restaurants || [];
+          if (!Array.isArray(restaurantData)) {
+            throw new Error('Invalid response data format');
+          }
+          const normalizedRestaurants = normalizeRestaurants(restaurantData);
           setRestaurants(normalizedRestaurants);
+          parentHandleSearch(query, filters);
         } catch (error) {
-          const errorMessage = error.response?.data?.error || error.message || 'Failed to fetch restaurants';
+          console.error('Error fetching restaurants:', {
+            message: error.message,
+            status: error.response?.status,
+            data: error.response?.data,
+            config: error.config,
+            stack: error.stack,
+          });
+          const errorMessage =
+            error.response?.status === 401 || error.response?.status === 403
+              ? 'Invalid or expired session. Please log in again.'
+              : error.response?.data?.error || error.message || 'Failed to fetch restaurants';
           setToast({ show: true, message: `Error: ${errorMessage}` });
           if (error.response?.status === 401 || error.response?.status === 403) {
             localStorage.removeItem('token');
-            setLocalToken('');
             setToken('');
             navigate('/login');
           }
@@ -57,9 +82,9 @@ function Search({ setToken }) {
           setLoading(false);
         }
       }, 500);
-      debouncedSearch();
+      debounced();
     },
-    [token, navigate, setToken]
+    [token, navigate, setToken, parentHandleSearch, normalizeRestaurants]
   );
 
   useEffect(() => {
@@ -91,7 +116,7 @@ function Search({ setToken }) {
                             <img
                               src={`http://localhost:8081/${image}`}
                               className="d-block w-100"
-                              alt={`${restaurant.name || 'Restaurant'} ${index + 1}`}
+                              alt={restaurant.name || 'Restaurant'}
                               style={{ height: '200px', objectFit: 'cover' }}
                               loading="lazy"
                               onError={(e) => {

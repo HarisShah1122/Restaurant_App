@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   CCol,
   CCard,
@@ -50,11 +50,18 @@ function Restaurant({ token, setToken }) {
   const fetchRestaurants = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, totalPages } = await searchRestaurants(page, 10, filters.query, filters); // Reduced limit to 10
+      if (!token) throw new Error('No authentication token provided');
+      const response = await searchRestaurants(page, 10, filters.query, filters, token);
+      const { data, totalPages } = response;
+      if (!data || !Array.isArray(data)) {
+        throw new Error('Invalid response data format');
+      }
       const normalizedRestaurants = data.map((restaurant) => ({
         ...restaurant,
         images: Array.isArray(restaurant.images)
-          ? restaurant.images.map((img) => img.replace(/^\/?(public\/images\/|uploads\/|uploads\/images\/|Ipublicluploads\/)/, 'public/uploads/images/'))
+          ? restaurant.images
+              .map((img) => img.replace(/^\/?(public\/images\/|uploads\/|uploads\/images\/|Ipublicluploads\/)/, 'public/uploads/images/'))
+              .slice(0, 2)
           : typeof restaurant.images === 'string'
           ? [restaurant.images.replace(/^\/?(public\/images\/|uploads\/|uploads\/images\/|Ipublicluploads\/)/, 'public/uploads/images/')]
           : [],
@@ -65,16 +72,19 @@ function Restaurant({ token, setToken }) {
         rating: restaurant.rating || 0,
       }));
       setRestaurants(normalizedRestaurants);
-      setTotalPages(totalPages);
+      setTotalPages(totalPages || 1);
     } catch (error) {
       console.error('Error fetching restaurants:', {
         message: error.message,
         status: error.response?.status,
         data: error.response?.data,
+        config: error.config,
+        stack: error.stack,
       });
-      const errorMessage = error.response?.status === 401 || error.response?.status === 403
-        ? 'Invalid or expired session. Please log in again.'
-        : error.response?.data?.error || 'Failed to fetch restaurants';
+      const errorMessage =
+        error.response?.status === 401 || error.response?.status === 403
+          ? 'Invalid or expired session. Please log in again.'
+          : error.response?.data?.error || error.message || 'Failed to fetch restaurants';
       setError(errorMessage);
       if (error.response?.status === 401 || error.response?.status === 403) {
         localStorage.removeItem('token');
@@ -83,7 +93,7 @@ function Restaurant({ token, setToken }) {
     } finally {
       setLoading(false);
     }
-  }, [page, filters, setToken]);
+  }, [page, filters, token, setToken]);
 
   useEffect(() => {
     if (!token) {
@@ -93,18 +103,18 @@ function Restaurant({ token, setToken }) {
     fetchRestaurants();
   }, [fetchRestaurants, token]);
 
-  const debouncedSearch = useCallback(
-    debounce((query, filterValues) => {
-      setFilters({ query, ...filterValues });
-      setPage(1);
-      fetchRestaurants();
-    }, 500),
-    [fetchRestaurants]
+  const debouncedSearch = useMemo(
+    () =>
+      debounce((query, filterValues) => {
+        setFilters({ query, ...filterValues });
+        setPage(1);
+      }, 500),
+    [setFilters, setPage]
   );
 
-  const handleSearch = (query, filterValues) => {
+  const handleSearch = useCallback((query, filterValues) => {
     debouncedSearch(query, filterValues);
-  };
+  }, [debouncedSearch]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -113,7 +123,7 @@ function Restaurant({ token, setToken }) {
   };
 
   const handleImageChange = (e) => {
-    const files = Array.from(e.target.files).slice(0, 30);
+    const files = Array.from(e.target.files).slice(0, 2);
     if (selectedRestaurant) {
       setSelectedRestaurant((prev) => ({ ...prev, images: files }));
     } else {
@@ -361,7 +371,7 @@ function Restaurant({ token, setToken }) {
           </h2>
           <p className="lead text-muted text-center">
             Savor authentic Pakistani cuisine{' '}
-            {new Date().toLocaleTimeString('en-Pzareen-PK', {
+            {new Date().toLocaleTimeString('en-PK', {
               timeZone: 'Asia/Karachi',
               hour: '2-digit',
               minute: '2-digit',
@@ -472,7 +482,7 @@ function Restaurant({ token, setToken }) {
                   <CFormInput
                     type="text"
                     name="location"
-                    value={newRestaurant.name}
+                    value={newRestaurant.location}
                     onChange={handleInputChange}
                     required
                     placeholder="Enter location"
@@ -493,7 +503,7 @@ function Restaurant({ token, setToken }) {
                   />
                 </div>
                 <div className="mb-3">
-                  <label className="form-label fw-bold">Images (optional)</label>
+                  <label className="form-label fw-bold">Images (optional, max 2)</label>
                   <CFormInput
                     type="file"
                     multiple
@@ -569,7 +579,7 @@ function Restaurant({ token, setToken }) {
                   />
                 </div>
                 <div className="mb-3">
-                  <label className="form-label fw-bold">Images (optional)</label>
+                  <label className="form-label fw-bold">Images (optional, max 2)</label>
                   <CFormInput
                     type="file"
                     multiple
@@ -599,13 +609,13 @@ function Restaurant({ token, setToken }) {
                   <img
                     src={
                       modalData?.images && modalData.images.length > 0
-                        ? `http://localhost:8081${modalData.images[0]}`
+                        ? `http://localhost:8081/${modalData.images[0]}`
                         : '/images/placeholder.jpg'
                     }
-                    alt={`${modalData?.name || 'Restaurant'} 1`} // Removed "Image"
+                    alt={modalData?.name || 'Restaurant'}
                     className="img-fluid"
                     style={{ width: '100%', height: 'auto', maxHeight: '400px', objectFit: 'cover', borderRadius: '10px' }}
-                    loading="lazy" // Added lazy loading
+                    loading="lazy"
                     onError={(e) => (e.target.src = '/images/placeholder.jpg')}
                   />
                 </div>

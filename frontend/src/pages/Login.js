@@ -24,41 +24,46 @@ function Login({ setIsAuthenticated, setToken }) {
     };
   }, []);
 
-  const handleSubmit = useCallback(async (e) => {
-    e.preventDefault();
-    setError('');
-    setLoading(true);
-    setProgress(0);
+  const handleSubmit = useCallback(
+    async (e) => {
+      e.preventDefault();
+      setError('');
+      setLoading(true);
+      setProgress(0);
 
-    const animateProgress = () => {
-      let progressValue = 0;
-      const updateProgress = () => {
-        progressValue += 10;
-        setProgress(progressValue);
-        if (progressValue < 100) {
-          requestAnimationFrame(updateProgress);
-        }
-      };
-      requestAnimationFrame(updateProgress);
-    };
-    animateProgress();
+      const interval = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 100) {
+            clearInterval(interval);
+            return 100;
+          }
+          return prev + 10;
+        });
+      }, 100);
 
-    try {
-      const response = await axios.post('http://localhost:8081/login', { email, password });
-      const token = response.data.token;
-      localStorage.setItem('token', token);
-      setIsAuthenticated(true);
-      setToken(token);
-      setTimeout(() => navigate('/'), 1000);
-    } catch (err) {
-      const errorMessage = err.response?.data?.error || 'Login failed';
-      setError(errorMessage);
-      setTimeout(() => setError(''), 5000);
-    } finally {
-      setLoading(false);
-      setProgress(100);
-    }
-  }, [email, password, navigate, setIsAuthenticated, setToken]);
+      try {
+        const response = await axios.post('http://localhost:8081/login', { email, password });
+        const { token } = response.data;
+        localStorage.setItem('token', token);
+        setIsAuthenticated(true);
+        setToken(token);
+        setToast({ show: true, message: 'Login successful! Redirecting...' });
+        setTimeout(() => navigate('/restaurant'), 1000);
+      } catch (err) {
+        const errorMessage = err.response?.data?.error || 'Login failed';
+        setError(errorMessage);
+        setToast({ show: true, message: errorMessage });
+        setTimeout(() => setError(''), 5000);
+      } finally {
+        setLoading(false);
+        clearInterval(interval);
+        setProgress(100);
+      }
+    },
+    [email, password, navigate, setIsAuthenticated, setToken]
+  );
+
+  const [toast, setToast] = useState({ show: false, message: '' });
 
   return (
     <div className="row justify-content-center" style={{ overflowX: 'hidden' }}>
@@ -81,7 +86,7 @@ function Login({ setIsAuthenticated, setToken }) {
                   type="email"
                   className="form-control"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => setEmail(e.target.value.trim())}
                   placeholder="e.g., muhammad.ali@example.com"
                   required
                 />
@@ -127,9 +132,9 @@ function Login({ setIsAuthenticated, setToken }) {
           </div>
         </div>
         <Toast
-          show={!!error}
-          message={error}
-          onClose={() => setError('')}
+          show={toast.show}
+          message={toast.message}
+          onClose={() => setToast({ show: false, message: '' })}
         />
       </div>
     </div>

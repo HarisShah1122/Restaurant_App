@@ -1,12 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router } from 'react-router-dom';
 import Navbar from './components/Navbar';
-import Restaurant from './components/restaurant';
-import KarachiRestaurants from './components/KarachiRestaurants';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Search from './pages/Search';
-import HomePage from './components/HomePage';
+import AppRoutes from './routes/AppRoutes';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'animate.css/animate.min.css';
 import { searchRestaurants } from './services/api';
@@ -16,9 +11,15 @@ const API_URL = 'http://localhost:8081/api';
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(!!localStorage.getItem('token'));
+  const [time, setTime] = useState(new Date());
   const [restaurants, setRestaurants] = useState([]);
   const [loading, setLoading] = useState(false);
   const [token, setToken] = useState(localStorage.getItem('token') || '');
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const checkAuth = useCallback(async () => {
     if (!token) {
@@ -33,11 +34,30 @@ function App() {
       });
       setIsAuthenticated(true);
     } catch (error) {
-      setIsAuthenticated(false);
-      localStorage.removeItem('token');
-      setToken('');
-      if (window.location.pathname !== '/' && window.location.pathname !== '/restaurant') {
-        window.location.href = '/login';
+      console.error('Authentication check failed:', {
+        message: error.message,
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+      if (error.response?.status === 404) {
+        // Fallback: Try fetching restaurants to validate token
+        try {
+          await searchRestaurants(1, 1, '', {}, token);
+          setIsAuthenticated(true);
+        } catch (fallbackError) {
+          console.error('Fallback auth check failed:', {
+            message: fallbackError.message,
+            status: fallbackError.response?.status,
+            data: fallbackError.response?.data,
+          });
+          setIsAuthenticated(false);
+          localStorage.removeItem('token');
+          setToken('');
+        }
+      } else {
+        setIsAuthenticated(false);
+        localStorage.removeItem('token');
+        setToken('');
       }
     } finally {
       setLoading(false);
@@ -48,10 +68,14 @@ function App() {
     if (!token) return;
     setLoading(true);
     try {
-      const { data } = await searchRestaurants(1, 10, '', {});
+      const { data } = await searchRestaurants(1, 10, '', {}, token);
       setRestaurants(data);
     } catch (err) {
-      console.error('Initial fetch error:', err);
+      console.error('Error fetching initial restaurants:', {
+        message: err.message,
+        status: err.response?.status,
+        data: err.response?.data,
+      });
       setRestaurants([]);
     } finally {
       setLoading(false);
@@ -60,17 +84,23 @@ function App() {
 
   useEffect(() => {
     checkAuth();
-    fetchInitialRestaurants();
-  }, [checkAuth, fetchInitialRestaurants]);
+    if (isAuthenticated) {
+      fetchInitialRestaurants();
+    }
+  }, [checkAuth, fetchInitialRestaurants, isAuthenticated]);
 
   const handleSearch = useCallback(async (query = '', filters = {}) => {
     if (!token) return;
     setLoading(true);
     try {
-      const { data } = await searchRestaurants(1, 10, query, filters);
+      const { data } = await searchRestaurants(1, 10, query, filters, token);
       setRestaurants(data);
     } catch (err) {
-      console.error('Search error:', err);
+      console.error('Error searching restaurants:', {
+        message: err.message,
+        status: err.response?.status,
+        data: err.response?.data,
+      });
       setRestaurants([]);
     } finally {
       setLoading(false);
@@ -83,29 +113,19 @@ function App() {
     <Router>
       <Navbar isAuthenticated={isAuthenticated} setIsAuthenticated={setIsAuthenticated} />
       <div className="container mt-4">
-        <Routes>
-          <Route
-            path="/"
-            element={
-              <HomePage
-                handleSearch={handleSearch}
-                handleFilter={handleFilter}
-                restaurants={restaurants}
-                loading={loading}
-                token={token}
-                setToken={setToken}
-              />
-            }
-          />
-          <Route
-            path="/restaurant"
-            element={<Restaurant token={token} setToken={setToken} />}
-          />
-          <Route path="/karachi" element={<KarachiRestaurants />} />
-          <Route path="/login" element={<Login setIsAuthenticated={setIsAuthenticated} setToken={setToken} />} />
-          <Route path="/register" element={<Register setIsAuthenticated={setIsAuthenticated} />} />
-          <Route path="/search" element={<Search handleSearch={handleSearch} />} />
-        </Routes>
+        <AppRoutes
+          isAuthenticated={isAuthenticated}
+          time={time}
+          handleSearch={handleSearch}
+          handleFilter={handleFilter}
+          restaurants={restaurants}
+          loading={loading}
+          token={token}
+          setToken={setToken}
+          setIsAuthenticated={setIsAuthenticated}
+          setRestaurants={setRestaurants}
+          setLoading={setLoading}
+        />
       </div>
     </Router>
   );
