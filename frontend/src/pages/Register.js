@@ -1,8 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import axios from 'axios';
+import { axiosInstance } from '../services/api'; 
 
-function Register({ setIsAuthenticated }) {
+function Register({ setIsAuthenticated, setToken }) {
   const [firstname, setFirstname] = useState('');
   const [lastname, setLastname] = useState('');
   const [email, setEmail] = useState('');
@@ -19,18 +19,38 @@ function Register({ setIsAuthenticated }) {
       setError('');
       setLoading(true);
       try {
-        const response = await axios.post('http://localhost:8081/signup', { firstname, lastname, email, password, role });
-        localStorage.setItem('token', response.data.token);
+        const response = await axiosInstance.post('/signup', {
+          firstname: firstname.trim(),
+          lastname: lastname.trim(),
+          email: email.trim(),
+          password,
+          role,
+        });
+        const { token } = response.data;
+        if (!token) throw new Error('No token received');
+        localStorage.setItem('token', token);
         setIsAuthenticated(true);
-        navigate('/login');
+        setToken(token);
+        navigate('/restaurant');
       } catch (err) {
-        setError(err.response?.data?.error || 'Registration failed');
+        console.error('Registration error:', {
+          message: err.message,
+          status: err.response?.status,
+          data: err.response?.data,
+        });
+        const errorMessage =
+          err.response?.status === 400
+            ? err.response?.data?.error || 'Invalid registration data'
+            : err.response?.status === 404
+            ? 'Registration service unavailable'
+            : err.response?.data?.error || 'Registration failed';
+        setError(errorMessage);
         setTimeout(() => setError(''), 5000);
       } finally {
         setLoading(false);
       }
     },
-    [firstname, lastname, email, password, role, navigate, setIsAuthenticated]
+    [firstname, lastname, email, password, role, navigate, setIsAuthenticated, setToken]
   );
 
   return (
@@ -38,7 +58,7 @@ function Register({ setIsAuthenticated }) {
       <div className="col-md-6">
         <div className="card mt-5 animate__animated animate__fadeIn">
           <div className="card-body p-4">
-            <h2 className="card-title text-center mb-4 text-success">Join Desi Diner!</h2>
+            <h2 className="card-title text-center mb-4 text-success">Join Desi Delights!</h2>
             {error && (
               <div className="alert alert-danger alert-dismissible fade show" role="alert">
                 {error}{' '}
@@ -52,7 +72,7 @@ function Register({ setIsAuthenticated }) {
                   type="text"
                   className="form-control"
                   value={firstname}
-                  onChange={(e) => setFirstname(e.target.value)}
+                  onChange={(e) => setFirstname(e.target.value.trim())}
                   placeholder="e.g., Muhammad"
                   required
                 />
@@ -63,7 +83,7 @@ function Register({ setIsAuthenticated }) {
                   type="text"
                   className="form-control"
                   value={lastname}
-                  onChange={(e) => setLastname(e.target.value)}
+                  onChange={(e) => setLastname(e.target.value.trim())}
                   placeholder="e.g., Ali"
                   required
                 />
@@ -74,7 +94,7 @@ function Register({ setIsAuthenticated }) {
                   type="email"
                   className="form-control"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => setEmail(e.target.value.trim())}
                   placeholder="e.g., muhammad.ali@example.com"
                   required
                 />

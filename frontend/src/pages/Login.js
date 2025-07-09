@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import Toast from '../components/Toast';
-import axios from 'axios';
+import { axiosInstance } from '../services/api'; 
 
 function Login({ setIsAuthenticated, setToken }) {
   const [email, setEmail] = useState('');
@@ -42,15 +42,27 @@ function Login({ setIsAuthenticated, setToken }) {
       }, 100);
 
       try {
-        const response = await axios.post('http://localhost:8081/login', { email, password });
+        // Use axiosInstance with baseURL from api.js, adjust to /login
+        const response = await axiosInstance.post('/login', { email: email.trim(), password });
         const { token } = response.data;
+        if (!token) throw new Error('No token received');
         localStorage.setItem('token', token);
         setIsAuthenticated(true);
         setToken(token);
         setToast({ show: true, message: 'Login successful! Redirecting...' });
         setTimeout(() => navigate('/restaurant'), 1000);
       } catch (err) {
-        const errorMessage = err.response?.data?.error || 'Login failed';
+        console.error('Login error:', {
+          message: err.message,
+          status: err.response?.status,
+          data: err.response?.data,
+        });
+        const errorMessage =
+          err.response?.status === 404
+            ? 'Login service unavailable. Please try again later.'
+            : err.response?.status === 401
+            ? 'Invalid email or password.'
+            : err.response?.data?.error || 'Login failed. Please try again.';
         setError(errorMessage);
         setToast({ show: true, message: errorMessage });
         setTimeout(() => setError(''), 5000);
@@ -70,7 +82,7 @@ function Login({ setIsAuthenticated, setToken }) {
       <div className="col-md-6">
         <div className="card mt-5 animate__animated animate__zoomIn">
           <div className="card-body p-5">
-            <h2 className="card-title text-center mb-4 text-primary">Welcome Back to Delights: Feast with Flavor!</h2>
+            <h2 className="card-title text-center mb-4 text-primary">Welcome Back to Desi Delights!</h2>
             <p className="text-center text-muted mb-4">Sign in to enjoy authentic Pakistani flavors</p>
             {error && (
               <div className="alert alert-danger alert-dismissible fade show" role="alert">
