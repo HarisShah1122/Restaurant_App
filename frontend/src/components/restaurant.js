@@ -67,8 +67,8 @@ function Restaurant({ token, setToken }) {
           : [],
         id: restaurant._id || restaurant.id || Math.random().toString(36).substring(2),
         name: (restaurant.name || 'Unknown').trim(),
-        cuisine: (restaurant.cuisine || 'N/A').trim(),
-        location: (restaurant.location || 'N/A').trim().replace('chken', 'chicken'),
+        cuisine: (restaurant.cuisine || 'N/A').trim().replace('chkn', 'chicken'),
+        location: (restaurant.location || 'N/A').trim().replace('chkn', 'chicken'),
         rating: restaurant.rating || 0,
       }));
       setRestaurants(normalizedRestaurants);
@@ -82,9 +82,11 @@ function Restaurant({ token, setToken }) {
         stack: error.stack,
       });
       const errorMessage =
-        error.response?.status === 401 || error.response?.status === 403
+        error.message.includes('Invalid search parameters')
+          ? 'Please check your search filters and try again.'
+          : error.response?.status === 401 || error.response?.status === 403
           ? 'Invalid or expired session. Please log in again.'
-          : error.response?.data?.error || error.message || 'Failed to fetch restaurants';
+          : error.message || 'Failed to fetch restaurants';
       setError(errorMessage);
       if (error.response?.status === 401 || error.response?.status === 403) {
         localStorage.removeItem('token');

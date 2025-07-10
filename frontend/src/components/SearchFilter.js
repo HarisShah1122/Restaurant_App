@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 
-function SearchFilter({ onSearch, onFilter }) {
+function SearchFilter({ onSearch }) {
   const [query, setQuery] = useState('');
   const [cuisine, setCuisine] = useState('');
   const [location, setLocation] = useState('');
@@ -11,9 +11,9 @@ function SearchFilter({ onSearch, onFilter }) {
       e.preventDefault();
       const filters = { cuisine, location, rating };
       onSearch(query, filters);
-      onFilter(query, filters);
+     
     },
-    [query, cuisine, location, rating, onSearch, onFilter]
+    [query, cuisine, location, rating, onSearch]
   );
 
   return (

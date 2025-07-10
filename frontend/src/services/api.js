@@ -23,33 +23,21 @@ axiosInstance.interceptors.request.use(
   },
   (error) => Promise.reject(error)
 );
-
-export const searchRestaurants = async (page = 1, limit = 10, query = '', filters = {}) => {
+export const searchRestaurants = async (page = 1, limit = 10, query = '', filters = {}, token) => {
   try {
-    // Sanitize filters
     const sanitizedFilters = {
       cuisine: (filters.cuisine || '').toLowerCase().replace('chkn', 'chicken').trim(),
       location: (filters.location || '').toLowerCase().trim(),
       rating: filters.rating ? parseFloat(filters.rating) : '',
       query: (query || '').trim(),
     };
-
     const response = await axiosInstance.get('/restaurants/search', {
-      params: {
-        page,
-        limit,
-        query: sanitizedFilters.query,
-        cuisine: sanitizedFilters.cuisine,
-        location: sanitizedFilters.location,
-        rating: sanitizedFilters.rating,
-      },
+      params: { page, limit, ...sanitizedFilters },
     });
-
     const data = response.data.restaurants || response.data.data || [];
     if (!Array.isArray(data)) {
       throw new Error('Invalid response data format');
     }
-
     return {
       data,
       totalPages: response.data.totalPages || 1,
@@ -60,10 +48,11 @@ export const searchRestaurants = async (page = 1, limit = 10, query = '', filter
       status: error.response?.status,
       data: error.response?.data,
       config: error.config,
+      stack: error.stack,
     });
     const errorMessage =
       error.response?.status === 400
-        ? error.response?.data?.error || 'Invalid search parameters'
+        ? error.response?.data?.error || 'Invalid search parameters. Please check your filters.'
         : error.response?.status === 401 || error.response?.status === 403
         ? 'Invalid or expired session'
         : error.response?.status === 404
@@ -72,7 +61,6 @@ export const searchRestaurants = async (page = 1, limit = 10, query = '', filter
     throw new Error(errorMessage);
   }
 };
-
 export const getSuggestions = async (query) => {
   if (!query) return [];
   try {

@@ -36,20 +36,14 @@ function KarachiRestaurants({ setToken }) {
           const { data } = await searchRestaurants(1, 10, query, { ...filters, location: 'Karachi' });
           const normalizedRestaurants = data.map((restaurant) => {
             let normalizedImages = [];
-            const validImageRegex = /^[0-9a-zA-Z._-]+\.(jpg|jpeg|png)$/;
             if (Array.isArray(restaurant.images)) {
-              normalizedImages = restaurant.images
-                .map((img) => img.replace(/^\/?(public\/images\/|uploads\/|uploads\/images\/|Ipublicluploads\/)/, 'public/uploads/images/'))
-                .filter((img) => validImageRegex.test(img.split('/').pop()));
+              normalizedImages = restaurant.images.map((img) => `/public/uploads/images/${img}`);
             } else if (typeof restaurant.images === 'string') {
-              const normalizedPath = restaurant.images.replace(/^\/?(public\/images\/|uploads\/|uploads\/images\/|Ipublicluploads\/)/, 'public/uploads/images/');
-              if (validImageRegex.test(normalizedPath.split('/').pop())) {
-                normalizedImages = [normalizedPath];
-              }
+              normalizedImages = [`/public/uploads/images/${restaurant.images}`];
             }
             return {
               ...restaurant,
-              images: normalizedImages.slice(0, 2), // Limit to 2 images
+              images: normalizedImages.slice(0, 2),
               _id: restaurant._id || restaurant.id || Math.random().toString(36).substring(2),
               id: restaurant._id || restaurant.id || Math.random().toString(36).substring(2),
               name: (restaurant.name || 'Unknown').trim(),
